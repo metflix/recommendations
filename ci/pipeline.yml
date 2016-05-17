@@ -1,0 +1,178 @@
+---
+resources:
+  - name: recommendations-tracker
+    type: tracker
+    source:
+      token: {{tracker-token}}
+      project_id: {{tracker-recommendations-project-id}}
+      tracker_url: https://www.pivotaltracker.com
+  - name: recommendations-repo-master
+    type: git
+    source:
+      uri: git@github.com:metflix/recommendations.git
+      branch: master
+      private_key: {{github-private-key}}
+  - name: recommendations-repo-dev
+    type: git
+    source:
+      uri: https://github.com/metflix/recommendations
+      branch: development
+  - name: cf-prod
+    type: cf
+    source:
+      api: {{cf-api}}
+      username: {{cf-username}}
+      password: {{cf-password}}
+      organization: {{cf-org}}
+      space: {{cf-space}}
+      skip_cert_check: true
+  - name: cf-dev
+    type: cf
+    source:
+      api: {{cf-api}}
+      username: {{cf-username}}
+      password: {{cf-password}}
+      organization: {{cf-org}}
+      space: {{cf-space-dev}}
+      skip_cert_check: true
+  - name: m2
+    type: docker-image
+    source:
+      repository: {{docker-repo}}
+
+jobs:
+  - name: recommendations-unit-dev
+    serial: true
+    plan:
+      - get: recommendations-repo-dev
+        trigger: true
+      - get: m2
+      - task: unit
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source:
+              repository: java
+              tag: 8-jdk-alpine
+          inputs:
+            - name: recommendations-repo-dev
+              path: repo
+            - name: m2
+          run:
+            path: sh
+            args:
+            - repo/ci/tasks/unit.sh
+  - name: recommendations-unit-master
+    serial: true
+    plan:
+      - get: recommendations-repo-master
+        trigger: true
+        passed: [ merge-to-master ]
+      - get: m2
+      - task: unit
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source:
+              repository: java
+              tag: 8-jdk-alpine
+          inputs:
+            - name: recommendations-repo-master
+              path: repo
+            - name: m2
+          run:
+            path: sh
+            args:
+            - repo/ci/tasks/unit.sh
+      - put: recommendations-tracker
+        params:
+          repos:
+          - recommendations-repo-master
+
+  - name: merge-to-master
+    plan:
+      - get: repo
+        resource: recommendations-repo-dev
+        passed: [ recommendations-unit-dev ]
+      - get: repo-master
+        resource: recommendations-repo-master
+      - task: merge-to-master
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source:
+              repository: getourneau/alpine-bash-git
+          inputs:
+            - name: repo
+            - name: repo-master
+          outputs:
+            - name: out
+          run:
+            path: /bin/bash
+            args:
+            - repo/ci/tasks/merge-to-master.sh
+      - put: repo-master
+        resource: recommendations-repo-master
+        params:
+          repository: out
+
+  - name: recommendations-deploy-dev
+    plan:
+      - get: recommendations-repo-dev
+        trigger: true
+        passed: [ recommendations-unit-dev ]
+      - get: m2
+      - task: package
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source:
+              repository: java
+              tag: 8-jdk-alpine
+          inputs:
+            - name: recommendations-repo-dev
+              path: repo
+            - name: m2
+          outputs:
+            - name: output
+          run:
+            path: sh
+            args:
+            - repo/ci/tasks/package.sh
+      - put: cf-dev
+        params:
+          manifest: recommendations-repo-dev/manifest-dev.yml
+          path: output/app.jar
+          current_app_name: recommendations-metflix-dev
+  - name: recommendations-deploy-prod
+    plan:
+      - get: recommendations-repo-master
+        passed: [ recommendations-unit-master ]
+      - get: m2
+      - task: package
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source:
+              repository: java
+              tag: 8-jdk-alpine
+          inputs:
+            - name: recommendations-repo-master
+              path: repo
+            - name: m2
+          outputs:
+            - name: output
+          run:
+            path: sh
+            args:
+            - repo/ci/tasks/package.sh
+      - put: cf-prod
+        params:
+          manifest: recommendations-repo-master/manifest.yml
+          path: output/app.jar
+          current_app_name: recommendations-metflix
