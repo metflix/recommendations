@@ -46,7 +46,7 @@ public class RecommendationsApplication {
 @RestController
 @RequestMapping("/api/recommendations")
 class RecommendationsController {
-    List<Movie> kidRecommendations = Arrays.asList(new Movie("lion king"), new Movie("frozen"));
+    List<Movie> kidRecommendations = Arrays.asList(new Movie("lion king"), new Movie("frozen"), new Movie("zootopia"));
     List<Movie> adultRecommendations = Arrays.asList(new Movie("shawshank redemption"), new Movie("spring"));
     List<Movie> familyRecommendations = Arrays.asList(new Movie("hook"), new Movie("the sandlot"));
 
