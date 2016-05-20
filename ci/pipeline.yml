@@ -63,6 +63,10 @@ jobs:
             path: sh
             args:
             - repo/ci/tasks/unit.sh
+      - put: recommendations-tracker
+        params:
+          repos:
+          - recommendations-repo-master
   - name: recommendations-unit-master
     serial: true
     plan:
@@ -86,10 +90,6 @@ jobs:
             path: sh
             args:
             - repo/ci/tasks/unit.sh
-      - put: recommendations-tracker
-        params:
-          repos:
-          - recommendations-repo-master
 
   - name: merge-to-master
     plan:
@@ -151,6 +151,7 @@ jobs:
   - name: recommendations-deploy-prod
     plan:
       - get: recommendations-repo-master
+        trigger: true
         passed: [ recommendations-unit-master ]
       - get: m2
       - task: package
