@@ -12,11 +12,13 @@ resources:
       uri: git@github.com:metflix/recommendations.git
       branch: master
       private_key: {{github-private-key}}
+    check_every: 5s # for demo
   - name: recommendations-repo-dev
     type: git
     source:
       uri: https://github.com/metflix/recommendations
       branch: development
+    check_every: 5s # for demo
   - name: cf-prod
     type: cf
     source:
@@ -66,7 +68,7 @@ jobs:
       - put: recommendations-tracker
         params:
           repos:
-          - recommendations-repo-master
+          - recommendations-repo-dev
   - name: recommendations-unit-master
     serial: true
     plan:
